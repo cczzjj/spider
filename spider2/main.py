@@ -1,25 +1,29 @@
+import imghdr
 import os
+import shutil
 import threading
 import time
 
 import requests
 from bs4 import BeautifulSoup
 
+headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:61.0) Gecko/20100101 Firefox/61.0"}
+proxies = {'http': 'http://127.0.0.1:1080'}
+
 
 def download_page(url):
-    '''
+    """
     用于下载页面
-    '''
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:61.0) Gecko/20100101 Firefox/61.0"}
-    r = requests.get(url, headers=headers)
+    """
+    r = requests.get(url, headers=headers, proxies=proxies)
     r.encoding = 'gb2312'
     return r.text
 
 
 def get_pic_list(html):
-    '''
+    """
     获取每个页面的套图列表,之后循环调用get_pic函数获取图片
-    '''
+    """
     soup = BeautifulSoup(html, 'html.parser')
     pic_list = soup.find_all('li', class_='wp-item')
     for i in pic_list:
@@ -30,28 +34,38 @@ def get_pic_list(html):
 
 
 def get_pic(link, text):
-    '''
+    """
     获取当前页面的图片,并保存
-    '''
+    """
     html = download_page(link)  # 下载界面
     soup = BeautifulSoup(html, 'html.parser')
     pic_list = soup.find('div', id="picture").find_all('img')  # 找到界面所有图片
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:61.0) Gecko/20100101 Firefox/61.0"}
     create_dir('pic/{}'.format(text))
-    for i in pic_list:
-        pic_link = i.get('src')  # 拿到图片的具体 url
-        r = requests.get(pic_link, headers=headers)  # 下载图片，之后保存到文件
-        with open('pic/{}/{}'.format(text, link.split('/')[-1]), 'wb') as f:
+    for index, val in enumerate(pic_list):
+        pic_link = val.get('src')  # 拿到图片的具体 url
+        r = requests.get(pic_link, headers=headers, proxies=proxies)  # 下载图片，之后保存到文件
+        file_name = 'pic/{}/{}'.format(text, str(index) + '.' + (pic_link.split('.')[-1]))
+        with open(file_name, 'wb') as f:
             f.write(r.content)
             time.sleep(1)  # 休息一下，不要给网站太大压力，避免被封
+        if imghdr.what(file_name) is None:
+            get_pic(link, text)
+            break
 
 
 def create_dir(name):
-    if not os.path.exists(name):
-        os.makedirs(name)
+    """
+    新建或者清空文件夹
+    """
+    if os.path.exists(name):
+        shutil.rmtree(name)
+    os.makedirs(name)
 
 
 def execute(url):
+    """
+    单线程执行方法
+    """
     page_html = download_page(url)
     get_pic_list(page_html)
 
